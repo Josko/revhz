@@ -1,0 +1,11 @@
+[package]
+name = "revhz"
+version = "0.0.1"
+authors = ["Josko Nikolic<josko.nikolic1@gmail.com>"]
+
+[dependencies]
+getopts = "0.2.11"
+ioctl = "0.3.2"
+
+[[bin]]
+name = "revhz"
