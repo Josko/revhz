@@ -6,6 +6,7 @@ use std::fmt;
 use std::f64;
 use std::mem;
 use std::str;
+use std::ffi::CString;
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -72,21 +73,23 @@ fn main() {
     std::process::exit(1);
   }
 
-  let mut events: [Event; EVENTS] = unsafe { mem::zeroed() };
+  let mut events: Vec<Event> = Vec::with_capacity(EVENTS);
 
-  for event in 0 .. EVENTS {
-    let device = fmt::format(format_args!("/dev/input/event{}", event));
+  for event_number in 0 .. EVENTS {
+    let mut event: Event = Event { ..Default::default() };
 
-    if let Ok(..) = File::open(&device) {
-      unsafe {
-        ioctl::eviocgname(events[event].fd, (events[event].name).as_mut_ptr(), 128);
-      }
+    let device = CString::new(fmt::format(format_args!("/dev/input/event{}", event_number))).unwrap();
 
-      println!("event: {}", events[event]);
+    event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::consts::os::posix88::O_RDONLY, 0) };
+
+    if event.fd > 0 {
+      let error_code = unsafe { ioctl::eviocgname(event.fd, event.name.as_mut_ptr(), event.name.capacity()) };
 
       if verbose {
-          println!("event{}: {}", event, str::from_utf8(&(events[event].name)).unwrap_or("ERROR"));
+          println!("event{}: {}", event_number, str::from_utf8(&(event.name)).unwrap_or("ERROR"));
       }
+
+      events[event_number] = event;
     }
   }
 
