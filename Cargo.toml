@@ -6,6 +6,7 @@ authors = ["Josko Nikolic<josko.nikolic1@gmail.com>"]
 [dependencies]
 getopts = "0.2.11"
 ioctl = "0.3.2"
+num = "0.1.26"
 
 [[bin]]
 name = "revhz"

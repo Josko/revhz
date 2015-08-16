@@ -1,5 +1,6 @@
 extern crate getopts;
 extern crate ioctl;
+extern crate num;
 
 use std::env;
 use std::fmt;
@@ -10,6 +11,7 @@ use std::ffi::CString;
 use std::io::prelude::*;
 use std::fs::File;
 
+use num::{Num, Zero, One};
 use ioctl::libc::funcs::posix88::unistd::geteuid;
 
 use getopts::Options;
@@ -26,9 +28,19 @@ struct Event {
   name: Vec<u8>,
 }
 
+fn zeros<T: Num>(size: usize) -> Vec<T> {
+  let mut zero_vec: Vec<T> = Vec::with_capacity(size as usize);
+
+  for i in 0..size {
+    zero_vec.push(num::zero::<T>());
+  }
+
+  return zero_vec;
+}
+
 impl Default for Event {
     fn default() -> Event {
-        Event { fd: 0, count: 0, avghz: 0, prvtime: 0.0, hz: Vec::with_capacity(64), name: Vec::with_capacity(128) }
+        Event { fd: 0, count: 0, avghz: 0, prvtime: 0.0, hz: zeros::<i32>(64), name: zeros::<u8>(128) }
     }
 }
 
@@ -83,23 +95,21 @@ fn main() {
 
     event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::consts::os::posix88::O_RDONLY, 0) };
 
-    let mut test: [u8; 128] = [0; 128];
-
     if event.fd > 0 {
-      let error_code = unsafe { ioctl::eviocgname(event.fd, &mut (test[0]), 128) };
+      let error_code = unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
 
       if verbose {
-          println!("event{}: {}", event_number, str::from_utf8(&(test)).unwrap_or("ERROR"));
+          println!("event{}: {}", event_number, str::from_utf8(&(event.name)).unwrap_or("ERROR"));
       }
 
-      //events[event_number] = event.clone();
+      events.push(event);
     }
   }
 
-  let mut quit: False;
+  let mut quit = false;
 
   while !quit {
-
+    break;
   }
 
   std::process::exit(0);
