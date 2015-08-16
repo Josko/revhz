@@ -4,14 +4,11 @@ extern crate num;
 
 use std::env;
 use std::fmt;
-use std::f64;
-use std::mem;
 use std::str;
 use std::ffi::CString;
 use std::io::prelude::*;
-use std::fs::File;
 
-use num::{Num, Zero, One};
+use num::{Num};
 use ioctl::libc::funcs::posix88::unistd::geteuid;
 
 use getopts::Options;
@@ -29,9 +26,9 @@ struct Event {
 }
 
 fn zeros<T: Num>(size: usize) -> Vec<T> {
-  let mut zero_vec: Vec<T> = Vec::with_capacity(size as usize);
+  let mut zero_vec: Vec<T> = Vec::with_capacity(size);
 
-  for i in 0..size {
+  for _ in 0 .. size {
     zero_vec.push(num::zero::<T>());
   }
 
@@ -96,7 +93,7 @@ fn main() {
     event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::consts::os::posix88::O_RDONLY, 0) };
 
     if event.fd > 0 {
-      let error_code = unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
+      unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
 
       if verbose {
           println!("event{}: {}", event_number, str::from_utf8(&(event.name)).unwrap_or("ERROR"));
