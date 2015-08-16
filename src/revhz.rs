@@ -109,5 +109,11 @@ fn main() {
     break;
   }
 
+  for event in &events {
+      if event.fd != -1 {
+        unsafe { ioctl::libc::close(event.fd) };
+      }
+  }
+
   std::process::exit(0);
 }
