@@ -16,6 +16,7 @@ use getopts::Options;
 
 const EVENTS: usize = 50;
 
+#[derive(Clone,Debug)]
 struct Event {
   fd: i32,
   count: i32,
@@ -82,15 +83,23 @@ fn main() {
 
     event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::consts::os::posix88::O_RDONLY, 0) };
 
+    let mut test: [u8; 128] = [0; 128];
+
     if event.fd > 0 {
-      let error_code = unsafe { ioctl::eviocgname(event.fd, event.name.as_mut_ptr(), event.name.capacity()) };
+      let error_code = unsafe { ioctl::eviocgname(event.fd, &mut (test[0]), 128) };
 
       if verbose {
-          println!("event{}: {}", event_number, str::from_utf8(&(event.name)).unwrap_or("ERROR"));
+          println!("event{}: {}", event_number, str::from_utf8(&(test)).unwrap_or("ERROR"));
       }
 
-      events[event_number] = event;
+      //events[event_number] = event.clone();
     }
+  }
+
+  let mut quit: False;
+
+  while !quit {
+
   }
 
   std::process::exit(0);
