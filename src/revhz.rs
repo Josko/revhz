@@ -114,6 +114,8 @@ fn main() {
     }
   }
 
+  println!("Press CTRL-C to exit.\n");
+
   while unsafe{ !quit } {
     // TODO
   }
