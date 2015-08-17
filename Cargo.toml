@@ -7,7 +7,7 @@ authors = ["Josko Nikolic<josko.nikolic1@gmail.com>"]
 getopts = "0.2.11"
 ioctl = "0.3.2"
 num = "0.1.26"
-mio = "0.4.1"
+nix = "0.3.9"
 
 [[bin]]
 name = "revhz"
