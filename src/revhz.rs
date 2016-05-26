@@ -11,7 +11,7 @@ use std::io::prelude::*;
 
 use num::{Num};
 use nix::sys::signal;
-use ioctl::libc::funcs::posix88::unistd::geteuid;
+use ioctl::libc::geteuid;
 
 use getopts::Options;
 
@@ -83,7 +83,7 @@ fn main() {
   let mut uid: u32;
 
   unsafe {
-    uid = ioctl::libc::funcs::posix88::unistd::geteuid();
+    uid = ioctl::libc::geteuid();
   }
 
   if uid != 0 {
@@ -101,7 +101,7 @@ fn main() {
 
     let device = CString::new(fmt::format(format_args!("/dev/input/event{}", event_number))).unwrap();
 
-    event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::consts::os::posix88::O_RDONLY, 0) };
+    event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::O_RDONLY, 0) };
 
     if event.fd > 0 {
       unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
