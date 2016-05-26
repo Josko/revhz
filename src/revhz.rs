@@ -117,13 +117,26 @@ fn main() {
   println!("Press CTRL-C to exit.\n");
 
   while unsafe{ !quit } {
-    // TODO
+    let mut set: ioctl::libc::fd_set = unsafe { std::mem::uninitialized() };
+    unsafe {
+      ioctl::libc::FD_ZERO(&mut set)
+    };
+
+    for event in &events {
+      if event.fd != -1 {
+        unsafe {
+          ioctl::libc::FD_SET(event.fd, &mut set)
+        };
+      }
+    }
+
+    //ioctl::libc::select(ioctl::libc::FD_SETSIZE, &mut set, ptr::null()
   }
 
   for event in &events {
-      if event.fd != -1 {
-        unsafe { ioctl::libc::close(event.fd) };
-      }
+    if event.fd != -1 {
+      unsafe { ioctl::libc::close(event.fd) };
+    }
   }
 
   std::process::exit(0);
