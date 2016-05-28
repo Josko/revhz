@@ -11,7 +11,6 @@ use std::io::prelude::*;
 
 use num::{Num};
 use nix::sys::signal;
-use ioctl::libc::geteuid;
 
 use getopts::Options;
 
@@ -79,12 +78,7 @@ fn main() {
   }
 
   let verbose: bool = !matches.opt_present("n");
-
-  let mut uid: u32;
-
-  unsafe {
-    uid = ioctl::libc::geteuid();
-  }
+  let uid: u32 = unsafe { ioctl::libc::getuid() };
 
   if uid != 0 {
     println!("{} must be used as superuser", program);
@@ -92,7 +86,14 @@ fn main() {
   }
 
   let sig_action = signal::SigAction::new(handle_sigint, signal::SockFlag::empty(), signal::SigSet::empty());
-  unsafe { signal::sigaction(signal::SIGINT, &sig_action) };
+
+  match unsafe { signal::sigaction(signal::SIGINT, &sig_action) } {
+    Ok(_) => {},
+    Err(_) => {
+      println!("Failure to set a signal handler");
+      std::process::exit(1);
+    }
+  };
 
   let mut events: Vec<Event> = Vec::with_capacity(EVENTS);
 
