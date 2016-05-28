@@ -3,12 +3,6 @@ extern crate ioctl;
 extern crate nix;
 extern crate num;
 
-use std::env;
-use std::fmt;
-use std::str;
-use std::ffi::CString;
-use std::io::prelude::*;
-
 use num::{Num};
 use nix::sys::signal;
 
@@ -18,16 +12,7 @@ const EVENTS: usize = 50;
 
 static mut quit: bool = false;
 
-#[derive(Clone,Debug)]
-struct Event {
-  fd: i32,
-  count: i32,
-  avghz: i32,
-  prvtime: f64,
-  hz: Vec<i32>,
-  name: Vec<u8>,
-}
-
+/// Zero-out a vector helper function.
 fn zeros<T: Num>(size: usize) -> Vec<T> {
   let mut zero_vec: Vec<T> = Vec::with_capacity(size);
 
@@ -38,29 +23,45 @@ fn zeros<T: Num>(size: usize) -> Vec<T> {
   return zero_vec;
 }
 
+/// Event struct that will hold device data.
+#[derive(Clone,Debug)]
+struct Event {
+  fd: i32,
+  count: i32,
+  avghz: i32,
+  prvtime: f64,
+  hz: Vec<i32>,
+  name: Vec<u8>,
+}
+
+/// Default constructor.
 impl Default for Event {
     fn default() -> Event {
         Event { fd: 0, count: 0, avghz: 0, prvtime: 0.0, hz: zeros::<i32>(64), name: zeros::<u8>(128) }
     }
 }
 
-impl fmt::Display for Event {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+/// Debug printing.
+impl std::fmt::Display for Event {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     write!(f, "({}, {}, {}, {}, {:#?}, {:#?})", self.fd, self.count, self.avghz, self.prvtime, self.hz, self.name)
   }
 }
 
+/// Help text.
 fn print_usage(program: &str, opts: Options) {
   let brief = format!("Usage: {} [options]", program);
   print!("{}", opts.usage(&brief));
 }
 
+/// Custom signar handler function.
 extern fn handle_sigint(_: i32) {
   unsafe { quit = true };
 }
 
 fn main() {
-  let args: Vec<String> = env::args().collect();
+  // Program arguments parsing.
+  let args: Vec<String> = std::env::args().collect();
   let program = args[0].clone();
 
   let mut opts = Options::new();
@@ -78,15 +79,15 @@ fn main() {
   }
 
   let verbose: bool = !matches.opt_present("n");
-  let uid: u32 = unsafe { ioctl::libc::getuid() };
 
-  if uid != 0 {
+  // Superuser check.
+  if unsafe { ioctl::libc::getuid() } != 0 {
     println!("{} must be used as superuser", program);
     std::process::exit(1);
   }
 
+  // Set the signal handler so the user can exit.
   let sig_action = signal::SigAction::new(handle_sigint, signal::SockFlag::empty(), signal::SigSet::empty());
-
   match unsafe { signal::sigaction(signal::SIGINT, &sig_action) } {
     Ok(_) => {},
     Err(_) => {
@@ -95,12 +96,12 @@ fn main() {
     }
   };
 
+  // Get all input devices.
   let mut events: Vec<Event> = Vec::with_capacity(EVENTS);
-
   for event_number in 0 .. EVENTS {
     let mut event: Event = Event { ..Default::default() };
 
-    let device = CString::new(fmt::format(format_args!("/dev/input/event{}", event_number))).unwrap();
+    let device = std::ffi::CString::new(std::fmt::format(format_args!("/dev/input/event{}", event_number))).unwrap();
 
     event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::O_RDONLY, 0) };
 
@@ -108,7 +109,7 @@ fn main() {
       unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
 
       if verbose {
-          println!("event{}: {}", event_number, str::from_utf8(&(event.name)).unwrap_or("ERROR"));
+          println!("event{}: {}", event_number, std::str::from_utf8(&(event.name)).unwrap_or("ERROR"));
       }
 
       events.push(event);
@@ -117,6 +118,7 @@ fn main() {
 
   println!("Press CTRL-C to exit.\n");
 
+  // Block on events and read them until user prompts to quit.
   while unsafe{ !quit } {
     let mut set: ioctl::libc::fd_set = unsafe { std::mem::uninitialized() };
     unsafe {
@@ -131,7 +133,20 @@ fn main() {
       }
     }
 
-    //ioctl::libc::select(ioctl::libc::FD_SETSIZE, &mut set, ptr::null()
+    if unsafe { ioctl::libc::select(events.len() as i32,
+                           &mut set,
+                           std::ptr::null_mut::<ioctl::libc::fd_set>(),
+                           std::ptr::null_mut::<ioctl::libc::fd_set>(),
+                           std::ptr::null_mut::<ioctl::libc::timeval>()) } > 0 {
+      for event_number in 0 .. EVENTS {
+        if events[event_number].fd == -1 || unsafe { ioctl::libc::FD_ISSET(events[event_number].fd, &mut set) } {
+          continue;
+        }
+
+        let mut input_event = ioctl::input_event { ..Default::default() };
+        let bytes = unsafe { ioctl::libc::read(events[event_number].fd, &mut input_event as *mut _ as *mut ioctl::libc::c_void, std::mem::size_of::<ioctl::input_event>()) };
+      }
+    }
   }
 
   for event in &events {
