@@ -133,24 +133,63 @@ fn main() {
       }
     }
 
-    if unsafe { ioctl::libc::select(events.len() as i32,
-                           &mut set,
-                           std::ptr::null_mut::<ioctl::libc::fd_set>(),
-                           std::ptr::null_mut::<ioctl::libc::fd_set>(),
-                           std::ptr::null_mut::<ioctl::libc::timeval>()) } > 0 {
-      for event_number in 0 .. EVENTS {
+    if unsafe { ioctl::libc::select(ioctl::libc::FD_SETSIZE as i32,
+                                    &mut set,
+                                    std::ptr::null_mut::<ioctl::libc::fd_set>(),
+                                    std::ptr::null_mut::<ioctl::libc::fd_set>(),
+                                    std::ptr::null_mut::<ioctl::libc::timeval>()) } > 0 {
+      for event_number in 0 .. EVENTS - 1 {
         if events[event_number].fd == -1 || unsafe { ioctl::libc::FD_ISSET(events[event_number].fd, &mut set) } {
           continue;
         }
 
         let mut input_event = ioctl::input_event { ..Default::default() };
         let bytes = unsafe { ioctl::libc::read(events[event_number].fd, &mut input_event as *mut _ as *mut ioctl::libc::c_void, std::mem::size_of::<ioctl::input_event>()) };
+
+        if bytes != std::mem::size_of::<ioctl::input_event>() as isize {
+          continue;
+        }
+
+        // EV_REL = 0x02
+        // EV_ABS = 0x03
+        if input_event._type != 0x02 && input_event._type != 0x03 {
+           let time: f64 = input_event.time.tv_sec as f64 * 1000.00 + (input_event.time.tv_usec / 1000) as f64;
+           let hz: i64 = 1000 / (time - events[event_number].prvtime) as i64;
+
+           if hz > 0 {
+             let freq_index: usize = (events[event_number].count & (64 - 1)) as usize;
+             events[event_number].count += 1;
+             events[event_number].hz[freq_index] = hz as i32;
+             events[event_number].avghz = 0;
+
+             for freq in events[event_number].hz.clone() {
+               events[event_number].avghz += freq;
+             }
+
+             if events[event_number].count > 64 {
+               events[event_number].avghz /= 64;
+             } else {
+               events[event_number].avghz /= events[event_number].count;
+             }
+
+             if verbose {
+               println!("{}: Latest {}Hz, Average {}Hz", std::str::from_utf8(&(events[event_number].name)).unwrap_or("ERROR"), hz, events[event_number].avghz);
+             }
+           }
+
+           events[event_number].prvtime = time;
+        }
       }
     }
   }
 
+  // Cleanup.
   for event in &events {
     if event.fd != -1 {
+      if event.avghz != 0 {
+        println!("\nAverage for {}: {}Hz", std::str::from_utf8(&(event.name)).unwrap_or("ERROR"), event.avghz);
+      }
+
       unsafe { ioctl::libc::close(event.fd) };
     }
   }
