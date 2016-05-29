@@ -103,7 +103,7 @@ fn main() {
 
     let device = std::ffi::CString::new(std::fmt::format(format_args!("/dev/input/event{}", event_number))).unwrap();
 
-    event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::O_RDONLY, ioctl::libc::S_IREAD) };
+    event.fd = unsafe { ioctl::libc::open(device.as_ptr(), ioctl::libc::O_RDONLY, 0) };
 
     if event.fd != -1 {
       unsafe { ioctl::eviocgname(event.fd, &mut (event.name[0]), 128) };
@@ -138,15 +138,15 @@ fn main() {
                                     std::ptr::null_mut::<ioctl::libc::fd_set>(),
                                     std::ptr::null_mut::<ioctl::libc::fd_set>(),
                                     std::ptr::null_mut::<ioctl::libc::timeval>()) } > 0 {
-      for event_number in 0 .. EVENTS - 1 {
+      for event_number in 0 .. events.len() {
         if events[event_number].fd == -1 || unsafe { ioctl::libc::FD_ISSET(events[event_number].fd, &mut set) } {
           continue;
         }
 
-        //println!("event {:?}", events[event_number]);
-
         let mut input_event = ioctl::input_event { ..Default::default() };
         let bytes = unsafe { ioctl::libc::read(events[event_number].fd, &mut input_event as *mut _ as *mut ioctl::libc::c_void, std::mem::size_of::<ioctl::input_event>()) };
+
+        //println!("event fd {} count {} bytes {}", events[event_number].fd, events[event_number].count, bytes);
 
         if bytes != std::mem::size_of::<ioctl::input_event>() as isize {
           continue;
