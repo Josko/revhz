@@ -89,7 +89,9 @@ fn main() {
   // Set the signal handler so the user can exit.
   let sig_action = signal::SigAction::new(handle_sigint, signal::SockFlag::empty(), signal::SigSet::empty());
   match unsafe { signal::sigaction(signal::SIGINT, &sig_action) } {
-    Ok(_) => {},
+    Ok(_) => {
+      println!("Press CTRL-C to exit.\n");
+    },
     Err(_) => {
       println!("Failure to set a signal handler");
       std::process::exit(1);
@@ -116,37 +118,34 @@ fn main() {
     }
   }
 
-  println!("Press CTRL-C to exit.\n");
-
   // Block on events and read them until user prompts to quit.
   while unsafe{ !quit } {
-    let mut set: ioctl::libc::fd_set = unsafe { std::mem::uninitialized() };
+    let mut file_desc_set: ioctl::libc::fd_set = unsafe { std::mem::uninitialized() };
     unsafe {
-      ioctl::libc::FD_ZERO(&mut set)
+      ioctl::libc::FD_ZERO(&mut file_desc_set)
     };
 
     for event in &events {
       if event.fd != -1 {
         unsafe {
-          ioctl::libc::FD_SET(event.fd, &mut set)
+          ioctl::libc::FD_SET(event.fd, &mut file_desc_set)
         };
       }
     }
 
     if unsafe { ioctl::libc::select(ioctl::libc::FD_SETSIZE as i32,
-                                    &mut set,
+                                    &mut file_desc_set,
                                     std::ptr::null_mut::<ioctl::libc::fd_set>(),
                                     std::ptr::null_mut::<ioctl::libc::fd_set>(),
                                     std::ptr::null_mut::<ioctl::libc::timeval>()) } > 0 {
       for event_number in 0 .. events.len() {
-        if events[event_number].fd == -1 || unsafe { ioctl::libc::FD_ISSET(events[event_number].fd, &mut set) } {
+        if events[event_number].fd == -1 || ! unsafe { ioctl::libc::FD_ISSET(events[event_number].fd, &mut file_desc_set) } {
           continue;
         }
 
-        let mut input_event = ioctl::input_event { ..Default::default() };
+        //let mut input_event = ioctl::input_event { ..Default::default() };
+        let mut input_event: ioctl::input_event = unsafe { std::mem::zeroed() }; 
         let bytes = unsafe { ioctl::libc::read(events[event_number].fd, &mut input_event as *mut _ as *mut ioctl::libc::c_void, std::mem::size_of::<ioctl::input_event>()) };
-
-        //println!("event fd {} count {} bytes {}", events[event_number].fd, events[event_number].count, bytes);
 
         if bytes != std::mem::size_of::<ioctl::input_event>() as isize {
           continue;
@@ -154,8 +153,13 @@ fn main() {
 
         // EV_REL = 0x02
         // EV_ABS = 0x03
-        if input_event._type != 0x02 && input_event._type != 0x03 {
+        if input_event._type == 0x02 || input_event._type == 0x03 {
            let time: f64 = input_event.time.tv_sec as f64 * 1000.00 + (input_event.time.tv_usec / 1000) as f64;
+
+           if time == events[event_number].prvtime {
+              continue;
+           }
+
            let hz: i64 = 1000 / (time - events[event_number].prvtime) as i64;
 
            if hz > 0 {
